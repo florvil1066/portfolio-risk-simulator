@@ -23,8 +23,8 @@ This project uses Monte Carlo simulation to quantify uncertainty in stock portfo
 
 ## 🚀 Live Demo
 
-**Web Application:** [Insert Your Netlify/GitHub Pages URL Here]  
-**Google Colab Analysis:** [Insert Your Colab Share Link Here]
+**Web Application:** (https://rad-salamander-c12ce1.netlify.app/)  
+**Google Colab Analysis:** https://colab.research.google.com/drive/1wkjO78zNk65R2JdVXP40QdNGULHgBRw-?usp=sharing
 
 ---
 
