@@ -480,9 +480,12 @@
 
         // Box-Muller transform for normal distribution
         function randomNormal(mean, std) {
-            let u1 = Math.random();
-            let u2 = Math.random();
-            let z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+            let u1 = 0, u2 = 0;
+            // Ensure we don't get 0 which would cause issues with log
+            while (u1 === 0) u1 = Math.random();
+            while (u2 === 0) u2 = Math.random();
+            
+            const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
             return z0 * std + mean;
         }
 
@@ -502,8 +505,14 @@
 
             // Validate weights sum to ~1
             const weightSum = Object.values(weights).reduce((a, b) => a + b, 0);
-            if (Math.abs(weightSum - 1.0) > 0.01) {
-                alert('Warning: Portfolio weights should sum to 100%. Current sum: ' + (weightSum * 100).toFixed(0) + '%');
+            if (Math.abs(weightSum - 1.0) > 0.05) {
+                alert('Warning: Portfolio weights should sum to 100%. Current sum: ' + (weightSum * 100).toFixed(0) + '%\n\nAdjusting to continue...');
+                // Normalize weights
+                const normalizedWeights = {};
+                for (let stock in weights) {
+                    normalizedWeights[stock] = weights[stock] / weightSum;
+                }
+                Object.assign(weights, normalizedWeights);
             }
 
             // Show loading
@@ -513,35 +522,49 @@
 
             // Run simulation after a delay to show loading
             setTimeout(() => {
-                const results = monteCarloSimulation(investment, days, numSims, weights);
-                displayResults(results, investment);
+                try {
+                    const results = monteCarloSimulation(investment, days, numSims, weights);
+                    displayResults(results, investment);
+                } catch (error) {
+                    console.error('Simulation error:', error);
+                    document.getElementById('loading').innerHTML = '<p style="color: red;">Error running simulation. Please try again with different parameters.</p>';
+                }
             }, 100);
         }
 
         function monteCarloSimulation(investment, days, numSims, weights) {
             const portfolioValues = [];
+            const stockNames = Object.keys(weights);
             
-            for (let sim = 0; sim < numSims; sim++) {
+            // Limit simulations to prevent browser freeze
+            const maxSims = Math.min(numSims, 50000);
+            if (numSims > maxSims) {
+                console.warn(`Limiting simulations to ${maxSims} to prevent browser freeze`);
+            }
+            
+            for (let sim = 0; sim < maxSims; sim++) {
                 let portfolioValue = investment;
                 
                 for (let day = 0; day < days; day++) {
                     // Generate daily returns for each stock
-                    const returns = {};
-                    for (let stock in weights) {
-                        returns[stock] = randomNormal(
+                    let portfolioReturn = 0;
+                    
+                    for (let stock of stockNames) {
+                        const stockReturn = randomNormal(
                             stockParams[stock].mean,
                             stockParams[stock].std
                         );
-                    }
-                    
-                    // Calculate portfolio return
-                    let portfolioReturn = 0;
-                    for (let stock in weights) {
-                        portfolioReturn += weights[stock] * returns[stock];
+                        portfolioReturn += weights[stock] * stockReturn;
                     }
                     
                     // Update portfolio value
                     portfolioValue *= (1 + portfolioReturn);
+                    
+                    // Sanity check to prevent infinite values
+                    if (!isFinite(portfolioValue) || portfolioValue <= 0) {
+                        portfolioValue = investment * 0.01; // Set to minimal value
+                        break;
+                    }
                 }
                 
                 portfolioValues.push(portfolioValue);
@@ -590,8 +613,12 @@
             }
             
             // Destroy old charts if they exist
-            if (window.histChart) window.histChart.destroy();
-            if (window.cdfChart) window.cdfChart.destroy();
+            if (window.histChart && typeof window.histChart.destroy === 'function') {
+                window.histChart.destroy();
+            }
+            if (window.cdfChart && typeof window.cdfChart.destroy === 'function') {
+                window.cdfChart.destroy();
+            }
             
             // Create histogram chart
             const histCtx = document.getElementById('histChart').getContext('2d');
